@@ -1,13 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Text } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { collection, query, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Post } from '../../components/Post';
 import { theme } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import type { Post as PostType } from '../../types/post';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../../navigation/types';
+
+type HomeScreenNavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
 export function HomeScreen() {
+  const navigation = useNavigation<HomeScreenNavigationProp>();
   const [posts, setPosts] = useState<PostType[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -41,6 +48,13 @@ export function HomeScreen() {
     } catch (error) {
       console.error('Gönderiler yüklenirken hata:', error);
     }
+  };
+
+  // Gönderi güncellendiğinde yerel state'i güncelle
+  const handlePostUpdate = (updatedPost: PostType) => {
+    setPosts(currentPosts => 
+      currentPosts.map(p => p.id === updatedPost.id ? updatedPost : p)
+    );
   };
 
   useEffect(() => {
@@ -88,50 +102,52 @@ export function HomeScreen() {
     }
   };
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
-
-  const ListHeader = () => (
+  const renderHeader = () => (
     <View style={styles.header}>
-      <Text style={styles.headerTitle}>Gönderiler</Text>
-    </View>
-  );
-
-  const ListEmptyComponent = () => (
-    <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>Henüz hiç gönderi yok</Text>
-      <Text style={styles.emptySubtext}>İlk gönderiyi sen paylaş!</Text>
+      <Text style={styles.headerTitle}>Keşfet</Text>
+      <View style={styles.headerRight}>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('CreatePost')}>
+          <Ionicons name="add-circle-outline" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+          <Ionicons name="notifications-outline" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Chat')}>
+          <Ionicons name="chatbubbles-outline" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <FlatList
-        data={posts}
-        keyExtractor={item => item.id}
-        renderItem={({ item }) => (
-          <Post
-            post={item}
-            onLike={() => handleLike(item)}
-          />
-        )}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor={theme.colors.primary}
-          />
-        }
-        ListHeaderComponent={ListHeader}
-        ListEmptyComponent={ListEmptyComponent}
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.listContent}
-      />
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        </View>
+      ) : (
+        <FlatList
+          data={posts}
+          renderItem={({ item }) => (
+            <Post 
+              post={item} 
+              onLike={() => handleLike(item)}
+              onPostUpdate={handlePostUpdate}
+            />
+          )}
+          keyExtractor={item => item.id}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          ListHeaderComponent={renderHeader}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Henüz gönderi yok</Text>
+              <Text style={styles.emptySubtext}>İlk gönderiyi sen paylaş!</Text>
+            </View>
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -148,15 +164,27 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   header: {
-    padding: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
     backgroundColor: theme.colors.background,
   },
   headerTitle: {
     fontSize: theme.typography.h2.fontSize,
-    fontWeight: theme.typography.h1.fontWeight,
+    fontWeight: theme.typography.h2.fontWeight,
     color: theme.colors.text,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  headerButton: {
+    padding: theme.spacing.xs,
   },
   listContent: {
     flexGrow: 1,

@@ -1,137 +1,191 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Text, ScrollView, Alert, Image } from 'react-native';
+import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { signOut } from 'firebase/auth';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Button } from '../../components/Button';
 import { theme } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { MainTabParamList } from '../../navigation/types';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-
-type ProfileScreenNavigationProp = NativeStackNavigationProp<MainTabParamList, 'Profile'>;
+import type { MainTabParamList, MainStackParamList } from '../../navigation/types';
+import type { Post as PostType } from '../../types/post';
 
 interface UserProfile {
   displayName?: string;
   bio?: string;
   photoURL?: string;
+  website?: string;
+  phoneNumber?: string;
+  location?: string;
+  email?: string;
 }
 
 export function ProfileScreen() {
-  const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
   const user = auth.currentUser;
   const [profile, setProfile] = useState<UserProfile>({});
+  const [posts, setPosts] = useState<PostType[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
 
-    // Firestore'dan gerçek zamanlı profil dinlemesi
-    const unsubscribe = onSnapshot(
+    // Profil bilgilerini dinle
+    const unsubscribeProfile = onSnapshot(
       doc(db, 'users', user.uid),
       (doc) => {
         if (doc.exists()) {
           setProfile(doc.data() as UserProfile);
         }
-        setLoading(false);
-      },
-      (error) => {
-        console.error('Profil dinleme hatası:', error);
-        setLoading(false);
       }
     );
 
-    // Cleanup fonksiyonu
-    return () => unsubscribe();
+    // Kullanıcının gönderilerini getir
+    const fetchPosts = async () => {
+      const postsRef = collection(db, 'posts');
+      const q = query(postsRef, where('userId', '==', user.uid));
+      const querySnapshot = await getDocs(q);
+      
+      const userPosts = querySnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate(),
+        updatedAt: doc.data().updatedAt?.toDate(),
+      })) as PostType[];
+
+      setPosts(userPosts);
+      setLoading(false);
+    };
+
+    fetchPosts();
+    return () => unsubscribeProfile();
   }, [user]);
 
   const handleSignOut = async () => {
     try {
       await signOut(auth);
     } catch (error) {
-      Alert.alert('Hata', 'Çıkış yapılırken bir hata oluştu');
+      console.error('Çıkış yapılırken hata:', error);
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profil</Text>
-        <View style={styles.headerButtons}>
-            <MaterialIcons
-            name="edit"
-            size={24}
-            color={theme.colors.primary}
-            onPress={() => navigation.navigate('EditProfile')}
-            style={styles.editButton}
-            />
-            <MaterialIcons
-            name="logout"
-            size={24}
-            color={theme.colors.primary}
-            onPress={handleSignOut}
-            style={styles.logoutButton}
-            />
+  const renderPost = ({ item }: { item: PostType }) => (
+    <TouchableOpacity 
+      style={styles.postContainer}
+      onPress={() => navigation.navigate('Comments', { post: item })}
+    >
+      <Image source={{ uri: item.imageUrl }} style={styles.postImage} />
+      <View style={styles.postStats}>
+        <View style={styles.postStat}>
+          <Ionicons name="heart" size={16} color={theme.colors.text} />
+          <Text style={styles.postStatText}>{item.likes.length}</Text>
+        </View>
+        <View style={styles.postStat}>
+          <Ionicons name="chatbubble" size={16} color={theme.colors.text} />
+          <Text style={styles.postStatText}>{item.comments.length}</Text>
         </View>
       </View>
-      
-      <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
+    </TouchableOpacity>
+  );
+
+  return (
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Profil</Text>
+        <View style={styles.headerRight}>
+          <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('EditProfile')}>
+            <Ionicons name="settings-outline" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.headerButton} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView>
         <View style={styles.profileInfo}>
-            {profile.photoURL ? (
-                <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
-            ) : (
-                <View style={styles.avatar}>
-                    <Text style={styles.avatarText}>
-                        {(profile.displayName?.[0] || user?.email?.[0] || '?').toUpperCase()}
-                    </Text>
-                </View>
-            )}
-            <View style={styles.stats}>
-                <View style={styles.statItem}>
-                    <Text style={styles.statNumber}>0</Text>
-                    <Text style={styles.statLabel}>Gönderi</Text>
-                </View>
-                <View style={styles.statItem}>
-                    <Text style={styles.statNumber}>0</Text>
-                    <Text style={styles.statLabel}>Takipçi</Text>
-                </View>
-                <View style={styles.statItem}>
-                    <Text style={styles.statNumber}>0</Text>
-                    <Text style={styles.statLabel}>Takip</Text>
-                </View>
+          {profile.photoURL ? (
+            <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Ionicons name="person" size={40} color={theme.colors.textSecondary} />
             </View>
-        </View>
-        <View style={styles.userInfo}>
-            <Text style={styles.displayName}>{profile.displayName || 'İsimsiz Kullanıcı'}</Text>
-            {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-        </View>
-        <View style={styles.postsContainer}>
-            <Text style={styles.emptyStateText}>
-            Henüz hiç gönderi paylaşılmadı.
-            </Text>
-        </View>
-        <View style={styles.postsContainer}>
-            <Text style={styles.sectionTitle}>Gönderiler</Text>
-            <View style={styles.postsGrid}>
-                <View style={styles.postBox}>
-                    <View style={styles.emptyPost}>
-                        <MaterialIcons name="image" size={32} color={theme.colors.textSecondary} />
-                    </View>
-                </View>
-                <View style={styles.postBox}>
-                    <View style={styles.emptyPost}>
-                        <MaterialIcons name="image" size={32} color={theme.colors.textSecondary} />
-                    </View>
-                </View>
-                <View style={styles.postBox}>
-                    <View style={styles.emptyPost}>
-                        <MaterialIcons name="image" size={32} color={theme.colors.textSecondary} />
-                    </View>
-                </View>
+          )}
+          
+          <Text style={styles.username}>{profile.displayName || 'İsimsiz Kullanıcı'}</Text>
+          {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+
+          <View style={styles.stats}>
+            <View style={styles.stat}>
+              <Text style={styles.statCount}>{posts.length}</Text>
+              <Text style={styles.statLabel}>Gönderi</Text>
             </View>
+            <View style={styles.stat}>
+              <Text style={styles.statCount}>0</Text>
+              <Text style={styles.statLabel}>Takipçi</Text>
+            </View>
+            <View style={styles.stat}>
+              <Text style={styles.statCount}>0</Text>
+              <Text style={styles.statLabel}>Takip</Text>
+            </View>
+          </View>
+
+          {(profile.website || profile.location || profile.phoneNumber || profile.email) && (
+            <View style={styles.contactInfo}>
+              {profile.website && (
+                <TouchableOpacity style={styles.contactItem}>
+                  <Ionicons name="globe-outline" size={20} color={theme.colors.text} />
+                  <Text style={styles.contactText}>{profile.website}</Text>
+                </TouchableOpacity>
+              )}
+              {profile.location && (
+                <TouchableOpacity style={styles.contactItem}>
+                  <Ionicons name="location-outline" size={20} color={theme.colors.text} />
+                  <Text style={styles.contactText}>{profile.location}</Text>
+                </TouchableOpacity>
+              )}
+              {profile.phoneNumber && (
+                <TouchableOpacity style={styles.contactItem}>
+                  <Ionicons name="call-outline" size={20} color={theme.colors.text} />
+                  <Text style={styles.contactText}>{profile.phoneNumber}</Text>
+                </TouchableOpacity>
+              )}
+              {profile.email && (
+                <TouchableOpacity style={styles.contactItem}>
+                  <Ionicons name="mail-outline" size={20} color={theme.colors.text} />
+                  <Text style={styles.contactText}>{profile.email}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
+          <Button 
+            title="Profili Düzenle" 
+            variant="outline"
+            onPress={() => navigation.navigate('EditProfile')}
+            style={styles.editButton}
+          />
         </View>
+
+        {loading ? (
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+        ) : (
+          <FlatList
+            data={posts}
+            renderItem={renderPost}
+            keyExtractor={item => item.id}
+            numColumns={3}
+            scrollEnabled={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>Henüz gönderi yok</Text>
+                <Text style={styles.emptySubtext}>İlk gönderiyi paylaş!</Text>
+              </View>
+            }
+          />
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -143,117 +197,136 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   header: {
-    padding: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
   },
-  title: {
+  headerTitle: {
     fontSize: theme.typography.h2.fontSize,
     fontWeight: theme.typography.h2.fontWeight,
     color: theme.colors.text,
   },
-  headerButtons: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  editButton: {
-    padding: theme.spacing.sm,
-  },
-  logoutButton: {
-    padding: theme.spacing.sm,
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: theme.spacing.lg,
-    gap: theme.spacing.xl,
-  },
   profileInfo: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.md,
+    padding: theme.spacing.lg,
   },
   avatar: {
     width: 100,
     height: 100,
-    borderRadius: 60,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
+    borderRadius: 50,
+    marginBottom: theme.spacing.md,
+  },
+  avatarFallback: {
+    backgroundColor: theme.colors.surface,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: 'white',
-  },
-  displayName: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  username: {
+    fontSize: theme.typography.h3.fontSize,
+    fontWeight: theme.typography.h3.fontWeight,
     color: theme.colors.text,
+    marginBottom: theme.spacing.xs,
   },
   bio: {
     fontSize: theme.typography.body.fontSize,
     color: theme.colors.text,
-    textAlign: 'left',
+    textAlign: 'center',
+    marginBottom: theme.spacing.md,
   },
   stats: {
-    flex: 1,
     flexDirection: 'row',
-    justifyContent: 'space-evenly',
-    paddingVertical: theme.spacing.sm,
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: theme.spacing.lg,
   },
-  statItem: {
+  stat: {
     alignItems: 'center',
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  statCount: {
+    fontSize: theme.typography.h3.fontSize,
+    fontWeight: theme.typography.h3.fontWeight,
     color: theme.colors.text,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.textSecondary,
+    marginTop: 4,
+  },
+  editButton: {
+    marginBottom: theme.spacing.lg,
+  },
+  postContainer: {
+    flex: 1/3,
+    aspectRatio: 1,
+    padding: 1,
+  },
+  postImage: {
+    flex: 1,
+    backgroundColor: theme.colors.surface,
+  },
+  postStats: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 4,
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  postStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  postStatText: {
+    fontSize: 12,
+    color: 'white',
+  },
+  emptyContainer: {
+    padding: theme.spacing.xl,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: theme.typography.h3.fontSize,
+    fontWeight: theme.typography.h3.fontWeight,
+    color: theme.colors.text,
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: theme.typography.body.fontSize,
     color: theme.colors.textSecondary,
   },
-  userInfo: {
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  headerButton: {
+    padding: theme.spacing.xs,
+  },
+  contactInfo: {
     display: 'flex',
     flexDirection: 'column',
-    gap: theme.spacing.sm,
-    marginTop: -20,
-  },
-  postsContainer: {
-    marginTop: theme.spacing.xs,
-  },
-  sectionTitle: {
-    fontSize: theme.typography.h3.fontSize,
-    fontWeight: 'bold',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.md,
-  },
-  postsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.xs,
-  },
-  postBox: {
-    flex: 1,
-    aspectRatio: 1,
-    backgroundColor: theme.colors.border,
-    borderRadius: theme.spacing.sm,
-    overflow: 'hidden',
-  },
-  emptyPost: {
-    flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    width: '100%',
+    paddingHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.lg,
+    gap: theme.spacing.sm,
   },
-  emptyStateText: {
-    textAlign: 'center',
-    color: theme.colors.textSecondary,
+  contactItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+  },
+  contactText: {
     fontSize: theme.typography.body.fontSize,
-    marginTop: theme.spacing.xl,
+    color: theme.colors.text,
   },
 }); 

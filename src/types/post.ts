@@ -16,6 +16,7 @@ export interface Comment {
   id: string;
   userId: string;
   username: string;
+  userAvatar?: string;
   text: string;
   createdAt: Date;
 } 

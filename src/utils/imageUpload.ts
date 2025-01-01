@@ -54,4 +54,32 @@ export async function uploadProfilePhoto(uri: string): Promise<string> {
     console.error('Fotoğraf yükleme hatası:', error);
     throw error;
   }
+}
+
+export async function uploadImage(uri: string): Promise<string> {
+  const formData = new FormData();
+  const filename = uri.split('/').pop() || 'image.jpg';
+  
+  formData.append('image', {
+    uri,
+    name: filename,
+    type: 'image/jpeg',
+  } as any);
+
+  try {
+    const response = await fetch('https://api.imgbb.com/1/upload?key=YOUR_IMGBB_API_KEY', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const data = await response.json();
+    if (data.success) {
+      return data.data.url;
+    } else {
+      throw new Error('Resim yükleme başarısız');
+    }
+  } catch (error) {
+    console.error('Resim yükleme hatası:', error);
+    throw error;
+  }
 } 

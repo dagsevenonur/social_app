@@ -3,7 +3,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Ionicons } from '@expo/vector-icons';
 import { theme } from '../theme';
-import type { MainTabParamList } from './types';
+import type { MainTabParamList, MainStackParamList } from './types';
 
 // Ekranları import et
 import { HomeScreen } from '../screens/main/HomeScreen';
@@ -11,20 +11,22 @@ import { SearchScreen } from '../screens/main/SearchScreen';
 import { ProfileScreen } from '../screens/main/ProfileScreen';
 import { EditProfileScreen } from '../screens/main/EditProfileScreen';
 import { CreatePostScreen } from '../screens/main/CreatePostScreen';
+import { CommentsScreen } from '../screens/main/CommentsScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
-const Stack = createNativeStackNavigator();
+const Stack = createNativeStackNavigator<MainStackParamList>();
 
-function ProfileStack() {
+function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="ProfileMain" component={ProfileScreen} />
+      <Stack.Screen name="TabNavigator" component={TabNavigator} />
+      <Stack.Screen name="Comments" component={CommentsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
     </Stack.Navigator>
   );
 }
 
-export function MainNavigator() {
+function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={{
@@ -71,7 +73,7 @@ export function MainNavigator() {
       />
       <Tab.Screen
         name="Profile"
-        component={ProfileStack}
+        component={ProfileScreen}
         options={{
           tabBarLabel: 'Profil',
           tabBarIcon: ({ color, size }) => (
@@ -81,4 +83,8 @@ export function MainNavigator() {
       />
     </Tab.Navigator>
   );
+}
+
+export function MainNavigator() {
+  return <MainStack />;
 } 

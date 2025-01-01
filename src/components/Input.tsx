@@ -1,22 +1,27 @@
 import React from 'react';
-import { TextInput, TextInputProps, StyleSheet } from 'react-native';
+import { View, TextInput, StyleSheet, Text, TextInputProps } from 'react-native';
 import { theme } from '../theme';
 
-interface InputProps extends TextInputProps {
-  error?: boolean;
+export interface InputProps extends TextInputProps {
+  label?: string;
+  error?: string | boolean;
 }
 
-export function Input({ error, style, ...props }: InputProps) {
+export function Input({ label, error, style, ...props }: InputProps) {
   return (
-    <TextInput
-      style={[
-        styles.input,
-        error && styles.inputError,
-        style,
-      ]}
-      placeholderTextColor={theme.colors.textSecondary}
-      {...props}
-    />
+    <View style={styles.container}>
+      {label && <Text style={styles.label}>{label}</Text>}
+      <TextInput
+        style={[
+          styles.input,
+          error && styles.inputError,
+          style,
+        ]}
+        placeholderTextColor={theme.colors.textSecondary}
+        {...props}
+      />
+      {error && <Text style={styles.error}>{error}</Text>}
+    </View>
   );
 }
 
@@ -34,5 +39,14 @@ const styles = StyleSheet.create({
   },
   inputError: {
     borderColor: theme.colors.error,
+  },
+  container: {
+    // Add any necessary container styles here
+  },
+  label: {
+    // Add any necessary label styles here
+  },
+  error: {
+    // Add any necessary error styles here
   },
 }); 

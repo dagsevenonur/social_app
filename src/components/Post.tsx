@@ -1,21 +1,36 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Text, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useNavigation } from '@react-navigation/native';
 import { theme } from '../theme';
 import type { Post as PostType } from '../types/post';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { MainStackParamList } from '../navigation/types';
+
+type PostScreenNavigationProp = NativeStackNavigationProp<MainStackParamList>;
 
 interface PostProps {
   post: PostType;
   onLike?: () => void;
-  onComment?: () => void;
+  onPostUpdate?: (post: PostType) => void;
 }
 
 const { width } = Dimensions.get('window');
 const IMAGE_SIZE = width;
 
-export function Post({ post, onLike, onComment }: PostProps) {
+export function Post({ post, onLike, onPostUpdate }: PostProps) {
+  const navigation = useNavigation<PostScreenNavigationProp>();
   const [imageError, setImageError] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+
+  const handleComment = () => {
+    navigation.navigate('Comments', { 
+      post,
+      onUpdate: (updatedPost: PostType) => {
+        onPostUpdate?.(updatedPost);
+      }
+    });
+  };
 
   const formatDate = (date: Date) => {
     const now = new Date();
@@ -71,17 +86,19 @@ export function Post({ post, onLike, onComment }: PostProps) {
                 size={28} 
                 color={post.isLiked ? theme.colors.error : theme.colors.text} 
               />
+              {post.likes.length > 0 && (
+                <Text style={styles.actionCount}>{post.likes.length}</Text>
+              )}
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={onComment} style={styles.actionButton}>
+            <TouchableOpacity onPress={handleComment} style={styles.actionButton}>
               <Ionicons name="chatbubble-outline" size={26} color={theme.colors.text} />
+              {post.comments.length > 0 && (
+                <Text style={styles.actionCount}>{post.comments.length}</Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
-
-        {post.likes.length > 0 && (
-          <Text style={styles.statsText}>{post.likes.length} beğenme</Text>
-        )}
 
         <View style={styles.captionContainer}>
           <Text style={styles.caption}>
@@ -91,7 +108,7 @@ export function Post({ post, onLike, onComment }: PostProps) {
         </View>
 
         {post.comments.length > 0 && (
-          <TouchableOpacity onPress={onComment}>
+          <TouchableOpacity onPress={handleComment}>
             <Text style={styles.commentsText}>
               {post.comments.length} yorumun tümünü gör
             </Text>
@@ -160,6 +177,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: theme.spacing.xs,
     marginLeft: -theme.spacing.xs,
   },
@@ -193,5 +212,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: theme.colors.textSecondary,
     marginTop: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+  },
+  actionCount: {
+    fontSize: 14,
+    color: theme.colors.text,
+    marginLeft: theme.spacing.xs,
   },
 }); 

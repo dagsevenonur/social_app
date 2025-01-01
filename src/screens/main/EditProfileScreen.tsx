@@ -1,182 +1,199 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, ScrollView, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Text, TouchableOpacity, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { theme } from '../../theme';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { pickImage, uploadProfilePhoto } from '../../utils/imageUpload';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import type { MainTabParamList } from '../../navigation/types';
-import type { UserProfile } from '../../types/user';
+import * as ImagePicker from 'expo-image-picker';
+import { uploadImage } from '../../utils/imageUpload';
 
-type EditProfileScreenNavigationProp = NativeStackNavigationProp<MainTabParamList, 'Profile'>;
+interface UserProfile {
+  displayName?: string;
+  bio?: string;
+  photoURL?: string;
+  website?: string;
+  phoneNumber?: string;
+  location?: string;
+  email?: string;
+}
 
 export function EditProfileScreen() {
-  const navigation = useNavigation<EditProfileScreenNavigationProp>();
+  const navigation = useNavigation();
   const user = auth.currentUser;
-  const [profile, setProfile] = useState<UserProfile>({
-    displayName: '',
-    bio: '',
-    photoURL: '',
-    website: '',
-    location: '',
-    phoneNumber: '',
-    gender: 'prefer-not-to-say',
-    birthDate: '',
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  });
   const [loading, setLoading] = useState(false);
-  const [photoLoading, setPhotoLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [displayName, setDisplayName] = useState('');
+  const [bio, setBio] = useState('');
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
+  const [website, setWebsite] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [location, setLocation] = useState('');
+  const [email, setEmail] = useState('');
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
     if (!user) return;
 
-    try {
-      const userRef = doc(db, 'users', user.uid);
-      const userDoc = await getDoc(userRef);
-      
-      if (userDoc.exists()) {
-        setProfile(userDoc.data() as UserProfile);
-      }
-    } catch (error) {
-      console.error('Profil yüklenirken hata:', error);
-      Alert.alert('Hata', 'Profil bilgileri yüklenemedi');
-    } finally {
-      setInitialLoading(false);
-    }
-  };
-
-  const handlePhotoSelect = async () => {
-    try {
-      setPhotoLoading(true);
-      const imageUri = await pickImage();
-      
-      if (imageUri) {
-        const photoURL = await uploadProfilePhoto(imageUri);
-        setProfile(prev => ({ ...prev, photoURL }));
-        
-        // Firestore'u güncelle
-        if (user) {
-          const userRef = doc(db, 'users', user.uid);
-          await updateDoc(userRef, { photoURL });
+    const fetchProfile = async () => {
+      try {
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data() as UserProfile;
+          setDisplayName(data.displayName || '');
+          setBio(data.bio || '');
+          setPhotoURL(data.photoURL || null);
+          setWebsite(data.website || '');
+          setPhoneNumber(data.phoneNumber || '');
+          setLocation(data.location || '');
+          setEmail(data.email || user.email || '');
         }
+      } catch (error) {
+        console.error('Profil bilgileri alınamadı:', error);
       }
-    } catch (error) {
-      console.error('Fotoğraf yükleme hatası:', error);
-      Alert.alert('Hata', 'Fotoğraf yüklenirken bir hata oluştu');
-    } finally {
-      setPhotoLoading(false);
+    };
+
+    fetchProfile();
+  }, [user]);
+
+  const handlePickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled && result.assets[0].uri) {
+      setUploading(true);
+      try {
+        const url = await uploadImage(result.assets[0].uri);
+        setPhotoURL(url);
+      } catch (error) {
+        Alert.alert('Hata', 'Fotoğraf yüklenirken bir hata oluştu');
+      } finally {
+        setUploading(false);
+      }
     }
   };
 
   const handleSave = async () => {
     if (!user) return;
-
+    
     setLoading(true);
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        ...profile,
+        displayName,
+        bio,
+        photoURL,
+        website,
+        phoneNumber,
+        location,
+        email,
         updatedAt: new Date(),
       });
-
       navigation.goBack();
     } catch (error) {
-      console.error('Profil güncellenirken hata:', error);
       Alert.alert('Hata', 'Profil güncellenirken bir hata oluştu');
     } finally {
       setLoading(false);
     }
   };
 
-  if (initialLoading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text>Yükleniyor...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Profili Düzenle</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profili Düzenle</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentContainer}>
         <TouchableOpacity 
-          style={styles.photoContainer} 
-          onPress={handlePhotoSelect}
-          disabled={photoLoading}
+          style={styles.avatarContainer} 
+          onPress={handlePickImage}
+          disabled={uploading}
         >
-          {profile.photoURL ? (
-            <Image source={{ uri: profile.photoURL }} style={styles.photo} />
+          {photoURL ? (
+            <Image source={{ uri: photoURL }} style={styles.avatar} />
           ) : (
-            <View style={styles.photoPlaceholder}>
-              <MaterialIcons name="add-a-photo" size={32} color={theme.colors.primary} />
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Ionicons name="person" size={40} color={theme.colors.textSecondary} />
             </View>
           )}
-          {photoLoading && (
-            <View style={styles.photoLoading}>
-              <Text>Yükleniyor...</Text>
+          {uploading ? (
+            <ActivityIndicator 
+              style={styles.uploadIndicator} 
+              color={theme.colors.primary} 
+            />
+          ) : (
+            <View style={styles.editBadge}>
+              <Ionicons name="camera" size={16} color="white" />
             </View>
           )}
         </TouchableOpacity>
 
         <Input
-          placeholder="Ad Soyad"
-          value={profile.displayName}
-          onChangeText={(text) => setProfile(prev => ({ ...prev, displayName: text }))}
-          autoCapitalize="words"
+          label="İsim"
+          value={displayName}
+          onChangeText={setDisplayName}
+          placeholder="İsminizi girin"
         />
+
         <Input
-          placeholder="Hakkımda"
-          value={profile.bio}
-          onChangeText={(text) => setProfile(prev => ({ ...prev, bio: text }))}
+          label="Hakkında"
+          value={bio}
+          onChangeText={setBio}
+          placeholder="Kendinizden bahsedin"
           multiline
-          numberOfLines={4}
+          numberOfLines={3}
           style={styles.bioInput}
         />
+
         <Input
-          placeholder="Website"
-          value={profile.website}
-          onChangeText={(text) => setProfile(prev => ({ ...prev, website: text }))}
-          autoCapitalize="none"
+          label="Website"
+          value={website}
+          onChangeText={setWebsite}
+          placeholder="Website adresinizi girin"
           keyboardType="url"
+          autoCapitalize="none"
         />
+
         <Input
-          placeholder="Konum"
-          value={profile.location}
-          onChangeText={(text) => setProfile(prev => ({ ...prev, location: text }))}
+          label="Konum"
+          value={location}
+          onChangeText={setLocation}
+          placeholder="Konumunuzu girin"
         />
+
         <Input
-          placeholder="Telefon"
-          value={profile.phoneNumber}
-          onChangeText={(text) => setProfile(prev => ({ ...prev, phoneNumber: text }))}
+          label="Telefon"
+          value={phoneNumber}
+          onChangeText={setPhoneNumber}
+          placeholder="Telefon numaranızı girin"
           keyboardType="phone-pad"
         />
-        
+
+        <Input
+          label="E-posta"
+          value={email}
+          onChangeText={setEmail}
+          placeholder="E-posta adresinizi girin"
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+
         <Button
           title="Kaydet"
           onPress={handleSave}
           loading={loading}
-        />
-        <Button
-          title="İptal"
-          variant="outline"
-          onPress={() => navigation.goBack()}
+          disabled={loading || uploading}
         />
       </ScrollView>
     </SafeAreaView>
@@ -189,56 +206,72 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   header: {
-    padding: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.border,
   },
-  title: {
+  headerTitle: {
     fontSize: theme.typography.h2.fontSize,
     fontWeight: theme.typography.h2.fontWeight,
     color: theme.colors.text,
+  },
+  backButton: {
+    padding: theme.spacing.sm,
+    marginLeft: -theme.spacing.sm,
   },
   content: {
     flex: 1,
   },
   contentContainer: {
-    padding: theme.spacing.lg,
     gap: theme.spacing.md,
+    padding: theme.spacing.lg,
   },
-  bioInput: {
-    height: 100,
-    textAlignVertical: 'top',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  photoContainer: {
+  avatarContainer: {
     alignSelf: 'center',
     marginBottom: theme.spacing.lg,
   },
-  photo: {
+  avatar: {
     width: 120,
     height: 120,
     borderRadius: 60,
   },
-  photoPlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  avatarFallback: {
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  photoLoading: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+  editBadge: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.colors.primary,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 60,
+    borderWidth: 3,
+    borderColor: theme.colors.background,
+  },
+  uploadIndicator: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    backgroundColor: theme.colors.surface,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: theme.colors.background,
+  },
+  bioInput: {
+    height: 80,
+    textAlignVertical: 'top',
+    paddingTop: theme.spacing.sm,
   },
 }); 
