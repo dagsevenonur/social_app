@@ -60,7 +60,7 @@ export function CreatePostScreen() {
       await addDoc(postsRef, {
         userId: user.uid,
         username: userData?.displayName || user.displayName || 'İsimsiz Kullanıcı',
-        userAvatar: userData?.photoURL || user.photoURL,
+        userAvatar: userData?.photoURL || user.photoURL || null,
         imageUrl,
         caption: caption.trim(),
         likes: [],

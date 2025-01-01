@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { collection, query, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { collection, query, orderBy, getDocs, doc, updateDoc, arrayUnion, arrayRemove, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Post } from '../../components/Post';
 import { theme } from '../../theme';
@@ -19,16 +19,23 @@ export function HomeScreen() {
       const querySnapshot = await getDocs(q);
       
       const currentUser = auth.currentUser;
-      const fetchedPosts = querySnapshot.docs.map(doc => {
-        const data = doc.data();
+      const fetchedPosts = await Promise.all(querySnapshot.docs.map(async docSnapshot => {
+        const data = docSnapshot.data();
+        
+        // Kullanıcı bilgilerini al
+        const userDoc = await getDoc(doc(db, 'users', data.userId));
+        const userData = userDoc.data();
+
         return {
-          id: doc.id,
+          id: docSnapshot.id,
           ...data,
+          username: data.username || userData?.displayName || 'İsimsiz Kullanıcı',
+          userAvatar: data.userAvatar || userData?.photoURL || null,
           createdAt: data.createdAt?.toDate(),
           updatedAt: data.updatedAt?.toDate(),
           isLiked: currentUser ? data.likes.includes(currentUser.uid) : false,
         } as PostType;
-      });
+      }));
 
       setPosts(fetchedPosts);
     } catch (error) {
@@ -89,8 +96,21 @@ export function HomeScreen() {
     );
   }
 
+  const ListHeader = () => (
+    <View style={styles.header}>
+      <Text style={styles.headerTitle}>Gönderiler</Text>
+    </View>
+  );
+
+  const ListEmptyComponent = () => (
+    <View style={styles.emptyContainer}>
+      <Text style={styles.emptyText}>Henüz hiç gönderi yok</Text>
+      <Text style={styles.emptySubtext}>İlk gönderiyi sen paylaş!</Text>
+    </View>
+  );
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <FlatList
         data={posts}
         keyExtractor={item => item.id}
@@ -107,6 +127,10 @@ export function HomeScreen() {
             tintColor={theme.colors.primary}
           />
         }
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmptyComponent}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
       />
     </SafeAreaView>
   );
@@ -122,5 +146,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.background,
+  },
+  header: {
+    padding: theme.spacing.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  headerTitle: {
+    fontSize: theme.typography.h2.fontSize,
+    fontWeight: theme.typography.h1.fontWeight,
+    color: theme.colors.text,
+  },
+  listContent: {
+    flexGrow: 1,
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.xl,
+    marginTop: theme.spacing.xl * 2,
+  },
+  emptyText: {
+    fontSize: theme.typography.h2.fontSize,
+    fontWeight: theme.typography.h2.fontWeight,
+    color: theme.colors.text,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+  },
+  emptySubtext: {
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
 }); 
