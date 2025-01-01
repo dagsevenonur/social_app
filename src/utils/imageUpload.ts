@@ -57,29 +57,30 @@ export async function uploadProfilePhoto(uri: string): Promise<string> {
 }
 
 export async function uploadImage(uri: string): Promise<string> {
-  const formData = new FormData();
-  const filename = uri.split('/').pop() || 'image.jpg';
-  
-  formData.append('image', {
-    uri,
-    name: filename,
-    type: 'image/jpeg',
-  } as any);
-
   try {
-    const response = await fetch('https://api.imgbb.com/1/upload?key=YOUR_IMGBB_API_KEY', {
+    const base64 = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const formData = new FormData();
+    formData.append('image', base64);
+    formData.append('key', IMGBB_API_KEY);
+
+    const response = await fetch('https://api.imgbb.com/1/upload', {
       method: 'POST',
       body: formData,
     });
 
     const data = await response.json();
-    if (data.success) {
-      return data.data.url;
-    } else {
-      throw new Error('Resim yükleme başarısız');
+    console.log('ImgBB Response:', data); // Debug için
+    
+    if (!data.success) {
+      throw new Error('Resim yükleme başarısız: ' + data.error?.message);
     }
+
+    return data.data.display_url;
   } catch (error) {
     console.error('Resim yükleme hatası:', error);
-    throw error;
+    throw new Error('Resim yükleme başarısız');
   }
 } 

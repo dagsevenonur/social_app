@@ -2,10 +2,10 @@ export interface Post {
   id: string;
   userId: string;
   username: string;
-  userAvatar?: string;
+  userPhotoURL?: string;
   imageUrl: string;
   caption: string;
-  likes: string[]; // Beğenen kullanıcıların ID'leri
+  likes: string[];
   comments: Comment[];
   createdAt: Date;
   updatedAt: Date;

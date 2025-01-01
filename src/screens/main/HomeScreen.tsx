@@ -33,15 +33,21 @@ export function HomeScreen() {
         const userDoc = await getDoc(doc(db, 'users', data.userId));
         const userData = userDoc.data();
 
-        return {
+        const post: PostType = {
           id: docSnapshot.id,
-          ...data,
+          userId: data.userId,
           username: data.username || userData?.displayName || 'İsimsiz Kullanıcı',
-          userAvatar: data.userAvatar || userData?.photoURL || null,
-          createdAt: data.createdAt?.toDate(),
-          updatedAt: data.updatedAt?.toDate(),
-          isLiked: currentUser ? data.likes.includes(currentUser.uid) : false,
-        } as PostType;
+          userPhotoURL: data.userAvatar || userData?.photoURL || null,
+          imageUrl: data.imageUrl,
+          caption: data.caption,
+          likes: data.likes || [],
+          comments: data.comments || [],
+          createdAt: data.createdAt?.toDate() || new Date(),
+          updatedAt: data.updatedAt?.toDate() || new Date(),
+          isLiked: currentUser ? (data.likes || []).includes(currentUser.uid) : false,
+        };
+
+        return post;
       }));
 
       setPosts(fetchedPosts);

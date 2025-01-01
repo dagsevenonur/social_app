@@ -15,6 +15,9 @@ export type MainStackParamList = {
   CreatePost: undefined;
   Notifications: undefined;
   Chat: undefined;
+  UserProfile: {
+    userId: string;
+  };
 };
 
 export type MainTabParamList = {

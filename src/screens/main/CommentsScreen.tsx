@@ -14,7 +14,10 @@ type Props = NativeStackScreenProps<MainStackParamList, 'Comments'>;
 
 export function CommentsScreen({ route, navigation }: Props) {
   const { post, onUpdate } = route.params;
-  const [comments, setComments] = useState(post.comments);
+  const [comments, setComments] = useState(post.comments.map(comment => ({
+    ...comment,
+    createdAt: comment.createdAt instanceof Date ? comment.createdAt : new Date(comment.createdAt)
+  })));
   const [comment, setComment] = useState('');
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);

@@ -12,6 +12,9 @@ import { ProfileScreen } from '../screens/main/ProfileScreen';
 import { EditProfileScreen } from '../screens/main/EditProfileScreen';
 import { CreatePostScreen } from '../screens/main/CreatePostScreen';
 import { CommentsScreen } from '../screens/main/CommentsScreen';
+import { NotificationsScreen } from '../screens/main/NotificationsScreen';
+import { ChatScreen } from '../screens/main/ChatScreen';
+import { UserProfileScreen } from '../screens/main/UserProfileScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
@@ -22,6 +25,10 @@ function MainStack() {
       <Stack.Screen name="TabNavigator" component={TabNavigator} />
       <Stack.Screen name="Comments" component={CommentsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="CreatePost" component={CreatePostScreen} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} />
+      <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
     </Stack.Navigator>
   );
 }
