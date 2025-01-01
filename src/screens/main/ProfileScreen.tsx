@@ -178,8 +178,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.md,
   },
   avatar: {
-    width: 120,
-    height: 120,
+    width: 100,
+    height: 100,
     borderRadius: 60,
     backgroundColor: theme.colors.primary,
     alignItems: 'center',

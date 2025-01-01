@@ -10,6 +10,7 @@ import { HomeScreen } from '../screens/main/HomeScreen';
 import { SearchScreen } from '../screens/main/SearchScreen';
 import { ProfileScreen } from '../screens/main/ProfileScreen';
 import { EditProfileScreen } from '../screens/main/EditProfileScreen';
+import { CreatePostScreen } from '../screens/main/CreatePostScreen';
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator();
@@ -45,6 +46,16 @@ export function MainNavigator() {
           tabBarLabel: 'Ana Sayfa',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="CreatePost"
+        component={CreatePostScreen}
+        options={{
+          tabBarLabel: 'Paylaş',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="add-circle-outline" size={size} color={color} />
           ),
         }}
       />
