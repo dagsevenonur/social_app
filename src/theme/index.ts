@@ -30,6 +30,10 @@ export const theme = {
       fontSize: 24,
       fontWeight: 'bold',
     },
+    h3: {
+      fontSize: 18,
+      fontWeight: 'bold',
+    },
     body: {
       fontSize: 16,
     },
