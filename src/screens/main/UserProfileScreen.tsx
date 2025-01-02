@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image, FlatList, ActivityIndicator, Alert, Platform } from 'react-native';
+import { View, StyleSheet, Text, ScrollView, TouchableOpacity, Image, FlatList, ActivityIndicator, Linking, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, onSnapshot, collection, query, where, getDocs, updateDoc, arrayUnion, arrayRemove, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, where, getDocs, getDoc, updateDoc, arrayUnion, arrayRemove, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Button } from '../../components/Button';
 import { theme } from '../../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { MainStackParamList } from '../../navigation/types';
 import type { Post as PostType } from '../../types/post';
 
@@ -23,7 +23,7 @@ interface UserProfile {
 }
 
 export function UserProfileScreen() {
-  const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
+  const navigation = useNavigation();
   const route = useRoute<Props['route']>();
   const { userId } = route.params;
   const currentUser = auth.currentUser;
@@ -32,76 +32,65 @@ export function UserProfileScreen() {
   const [posts, setPosts] = useState<PostType[]>([]);
   const [loading, setLoading] = useState(true);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [stats, setStats] = useState({
-    followers: 0,
-    following: 0,
-    posts: 0
-  });
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   useEffect(() => {
-    // Profil bilgilerini dinle
-    const unsubscribeProfile = onSnapshot(
-      doc(db, 'users', userId),
-      (doc) => {
-        if (doc.exists()) {
-          setProfile(doc.data() as UserProfile);
-        }
-      }
-    );
+    if (!userId) return;
 
-    // Kullanıcının gönderilerini getir
+    // Kullanıcı profilini dinle
+    const unsubscribeProfile = onSnapshot(doc(db, 'users', userId), (doc) => {
+      if (doc.exists()) {
+        setProfile(doc.data() as UserProfile);
+      }
+      setLoading(false);
+    });
+
+    // Kullanıcının gönderilerini al
     const fetchPosts = async () => {
       const postsRef = collection(db, 'posts');
       const q = query(postsRef, where('userId', '==', userId));
       const querySnapshot = await getDocs(q);
-      
       const userPosts = querySnapshot.docs.map(doc => ({
         id: doc.id,
-        ...doc.data(),
-        createdAt: doc.data().createdAt?.toDate(),
-        updatedAt: doc.data().updatedAt?.toDate(),
+        ...doc.data()
       })) as PostType[];
-
       setPosts(userPosts);
-      setLoading(false);
     };
 
     // Takip durumunu kontrol et
     const checkFollowStatus = async () => {
       if (!currentUser) return;
-      
       const followRef = doc(db, 'follows', currentUser.uid);
       const followDoc = await getDoc(followRef);
       if (followDoc.exists()) {
-        const followData = followDoc.data();
-        setIsFollowing(followData.following?.includes(userId) || false);
+        const data = followDoc.data();
+        setIsFollowing(data?.following?.includes(userId) || false);
       }
     };
 
-    // Takipçi ve takip sayılarını getir
-    const fetchStats = async () => {
-      // Kullanıcının takip ettiklerini getir
-      const userFollowsRef = doc(db, 'follows', userId);
-      const userFollowsDoc = await getDoc(userFollowsRef);
-      const following = userFollowsDoc.exists() ? userFollowsDoc.data().following?.length || 0 : 0;
+    // Takipçi ve takip edilen sayılarını al
+    const fetchFollowCounts = async () => {
+      const followersRef = collection(db, 'follows');
+      const followersQ = query(followersRef, where('following', 'array-contains', userId));
+      const followersSnapshot = await getDocs(followersQ);
+      setFollowersCount(followersSnapshot.size);
 
-      // Kullanıcının takipçilerini getir
-      const followersQuery = query(collection(db, 'follows'), where('following', 'array-contains', userId));
-      const followersSnapshot = await getDocs(followersQuery);
-      const followers = followersSnapshot.size;
-
-      setStats({
-        followers,
-        following,
-        posts: posts.length
-      });
+      const followingDoc = await getDoc(doc(db, 'follows', userId));
+      if (followingDoc.exists()) {
+        const data = followingDoc.data();
+        setFollowingCount(data?.following?.length || 0);
+      }
     };
 
     fetchPosts();
     checkFollowStatus();
-    fetchStats();
-    return () => unsubscribeProfile();
-  }, [userId, currentUser, posts]);
+    fetchFollowCounts();
+
+    return () => {
+      unsubscribeProfile();
+    };
+  }, [userId, currentUser]);
 
   const handleFollow = async () => {
     if (!currentUser) return;
@@ -113,7 +102,6 @@ export function UserProfileScreen() {
         // Kullanıcının follows dökümanını oluştur
         await setDoc(followRef, {
           following: [],
-          followers: [],
           updatedAt: serverTimestamp()
         });
       }
@@ -136,24 +124,13 @@ export function UserProfileScreen() {
     }
   };
 
-  const renderPost = ({ item }: { item: PostType }) => (
-    <TouchableOpacity 
-      style={styles.postContainer}
-      onPress={() => navigation.navigate('Comments', { post: item })}
-    >
-      <Image source={{ uri: item.imageUrl }} style={styles.postImage} />
-      <View style={styles.postStats}>
-        <View style={styles.postStat}>
-          <Ionicons name="heart" size={16} color={theme.colors.text} />
-          <Text style={styles.postStatText}>{item.likes.length}</Text>
-        </View>
-        <View style={styles.postStat}>
-          <Ionicons name="chatbubble" size={16} color={theme.colors.text} />
-          <Text style={styles.postStatText}>{item.comments.length}</Text>
-        </View>
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
-    </TouchableOpacity>
-  );
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -161,12 +138,12 @@ export function UserProfileScreen() {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>{profile.displayName || 'Profil'}</Text>
+        <Text style={styles.headerTitle}>{profile.displayName || 'Kullanıcı'}</Text>
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView>
-        <View style={styles.profileInfo}>
+      <ScrollView style={styles.content}>
+        <View style={styles.profileHeader}>
           {profile.photoURL ? (
             <Image source={{ uri: profile.photoURL }} style={styles.avatar} />
           ) : (
@@ -174,72 +151,60 @@ export function UserProfileScreen() {
               <Ionicons name="person" size={40} color={theme.colors.textSecondary} />
             </View>
           )}
-          
-          <Text style={styles.username}>{profile.displayName || 'İsimsiz Kullanıcı'}</Text>
-          {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
 
-          <View style={styles.statsContainer}>
-            <View style={styles.stat}>
-              <Text style={styles.statCount}>{stats.posts}</Text>
+          <View style={styles.stats}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{posts.length}</Text>
               <Text style={styles.statLabel}>Gönderi</Text>
             </View>
-            <View style={styles.stat}>
-              <Text style={styles.statCount}>{stats.followers}</Text>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{followersCount}</Text>
               <Text style={styles.statLabel}>Takipçi</Text>
             </View>
-            <View style={styles.stat}>
-              <Text style={styles.statCount}>{stats.following}</Text>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{followingCount}</Text>
               <Text style={styles.statLabel}>Takip</Text>
             </View>
           </View>
-
-          {(profile.website || profile.location || profile.email) && (
-            <View style={styles.contactInfo}>
-              {profile.website && (
-                <TouchableOpacity style={styles.contactItem}>
-                  <Ionicons name="globe-outline" size={20} color={theme.colors.text} />
-                  <Text style={styles.contactText}>{profile.website}</Text>
-                </TouchableOpacity>
-              )}
-              {profile.location && (
-                <TouchableOpacity style={styles.contactItem}>
-                  <Ionicons name="location-outline" size={20} color={theme.colors.text} />
-                  <Text style={styles.contactText}>{profile.location}</Text>
-                </TouchableOpacity>
-              )}
-              {profile.email && (
-                <TouchableOpacity style={styles.contactItem}>
-                  <Ionicons name="mail-outline" size={20} color={theme.colors.text} />
-                  <Text style={styles.contactText}>{profile.email}</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          )}
-
-          <Button 
-            title={isFollowing ? "Takibi Bırak" : "Takip Et"}
-            variant={isFollowing ? "outline" : "primary"}
-            onPress={handleFollow}
-            style={styles.followButton}
-          />
         </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        ) : (
-          <FlatList
-            data={posts}
-            renderItem={renderPost}
-            keyExtractor={item => item.id}
-            numColumns={3}
-            scrollEnabled={false}
-            ListEmptyComponent={
-              <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>Henüz gönderi yok</Text>
-              </View>
-            }
-          />
+        <View style={styles.profileInfo}>
+          <Text style={styles.displayName}>{profile.displayName || 'İsimsiz Kullanıcı'}</Text>
+          {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+          {profile.website && (
+            <Text style={styles.website} onPress={() => Linking.openURL(profile.website || '')}>
+              {profile.website}
+            </Text>
+          )}
+          {profile.location && <Text style={styles.location}>{profile.location}</Text>}
+        </View>
+
+        {currentUser && currentUser.uid !== userId && (
+          <View style={styles.actionButtons}>
+            <Button
+              title={isFollowing ? "Takibi Bırak" : "Takip Et"}
+              onPress={handleFollow}
+              variant={isFollowing ? "outline" : "primary"}
+              style={styles.followButton}
+            />
+            <Button
+              title="Mesaj"
+              onPress={() => {/* Mesajlaşma özelliği eklenecek */}}
+              variant="outline"
+              style={styles.messageButton}
+            />
+          </View>
         )}
+
+        <View style={styles.postsGrid}>
+          {posts.map(post => (
+            <Image
+              key={post.id}
+              source={{ uri: post.imageUrl }}
+              style={styles.postImage}
+            />
+          ))}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -249,6 +214,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
@@ -267,22 +237,48 @@ const styles = StyleSheet.create({
     padding: theme.spacing.sm,
     marginLeft: -theme.spacing.sm,
   },
-  profileInfo: {
-    alignItems: 'center',
+  content: {
+    flex: 1,
+  },
+  profileHeader: {
     padding: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    marginBottom: theme.spacing.md,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
   },
   avatarFallback: {
     backgroundColor: theme.colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  username: {
+  stats: {
+    flex: 1,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginLeft: theme.spacing.lg,
+  },
+  statItem: {
+    alignItems: 'center',
+  },
+  statNumber: {
+    fontSize: theme.typography.h3.fontSize,
+    fontWeight: theme.typography.h3.fontWeight,
+    color: theme.colors.text,
+  },
+  statLabel: {
+    fontSize: theme.typography.caption.fontSize,
+    color: theme.colors.textSecondary,
+    marginTop: 2,
+  },
+  profileInfo: {
+    padding: theme.spacing.lg,
+    paddingTop: 0,
+  },
+  displayName: {
     fontSize: theme.typography.h3.fontSize,
     fontWeight: theme.typography.h3.fontWeight,
     color: theme.colors.text,
@@ -291,88 +287,37 @@ const styles = StyleSheet.create({
   bio: {
     fontSize: theme.typography.body.fontSize,
     color: theme.colors.text,
-    textAlign: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  statsContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  stat: {
-    alignItems: 'center',
-    padding: theme.spacing.md,
-  },
-  statCount: {
-    fontSize: theme.typography.h3.fontSize,
-    fontWeight: theme.typography.h3.fontWeight,
-    color: theme.colors.text,
-  },
-  statLabel: {
-    fontSize: theme.typography.caption.fontSize,
-    color: theme.colors.textSecondary,
-    marginTop: 4,
-  },
-  followButton: {
-    marginBottom: theme.spacing.lg,
-  },
-  postContainer: {
-    flex: 1/3,
-    aspectRatio: 1,
-    padding: 1,
-  },
-  postImage: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-  },
-  postStats: {
-    position: 'absolute',
-    bottom: 4,
-    left: 4,
-    right: 4,
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  postStat: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  postStatText: {
-    fontSize: 12,
-    color: 'white',
-  },
-  emptyContainer: {
-    padding: theme.spacing.xl,
-    alignItems: 'center',
-  },
-  emptyText: {
-    fontSize: theme.typography.h3.fontSize,
-    fontWeight: theme.typography.h3.fontWeight,
-    color: theme.colors.text,
     marginBottom: theme.spacing.sm,
   },
-  contactInfo: {
-    width: '100%',
-    paddingHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.lg,
-    gap: theme.spacing.sm,
-  },
-  contactItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
-  },
-  contactText: {
+  website: {
     fontSize: theme.typography.body.fontSize,
-    color: theme.colors.text,
+    color: theme.colors.primary,
+    marginBottom: theme.spacing.xs,
+  },
+  location: {
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.textSecondary,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    padding: theme.spacing.lg,
+    paddingTop: 0,
+    gap: theme.spacing.sm,
+  },
+  followButton: {
+    flex: 1,
+  },
+  messageButton: {
+    flex: 1,
+  },
+  postsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    padding: theme.spacing.xs,
+  },
+  postImage: {
+    width: '33.33%',
+    aspectRatio: 1,
+    padding: theme.spacing.xs,
   },
 }); 
