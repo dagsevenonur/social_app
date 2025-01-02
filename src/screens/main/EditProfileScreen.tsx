@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity, Image, Alert, ActivityIndicator, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -87,14 +87,15 @@ export function EditProfileScreen() {
     try {
       const userRef = doc(db, 'users', user.uid);
       await updateDoc(userRef, {
-        displayName,
-        bio,
+        displayName: displayName,
+        displayNameLower: displayName.toLowerCase(),
+        bio: bio,
         photoURL,
         website,
         phoneNumber,
         location,
         email,
-        updatedAt: new Date(),
+        updatedAt: serverTimestamp(),
       });
       navigation.goBack();
     } catch (error) {

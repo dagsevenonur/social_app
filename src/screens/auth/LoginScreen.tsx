@@ -1,159 +1,125 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Text, ScrollView, Alert } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { View, StyleSheet, Text, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import { auth } from '../../services/firebase';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
 import { theme } from '../../theme';
-import { validateEmail, validatePassword, checkLoginAttempts, recordLoginAttempt, getFirebaseAuthError } from '../../utils/validation';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../../navigation/types';
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
+type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
-export function LoginScreen() {
-  const navigation = useNavigation<LoginScreenNavigationProp>();
+export function LoginScreen({ navigation }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [lockoutTimer, setLockoutTimer] = useState<NodeJS.Timeout | null>(null);
 
-  // Zamanlayıcıyı temizle
+  // Kayıtlı email'i kontrol et
   useEffect(() => {
-    return () => {
-      if (lockoutTimer) {
-        clearTimeout(lockoutTimer);
+    const checkSavedEmail = async () => {
+      try {
+        const savedEmail = await AsyncStorage.getItem('rememberedEmail');
+        const wasRemembered = await AsyncStorage.getItem('rememberMe');
+        if (savedEmail && wasRemembered === 'true') {
+          setEmail(savedEmail);
+          setRememberMe(true);
+        }
+      } catch (error) {
+        console.error('Kayıtlı email kontrolü hatası:', error);
       }
     };
-  }, [lockoutTimer]);
+    checkSavedEmail();
+  }, []);
 
   const handleLogin = async () => {
-    // Giriş denemesi kontrolü
-    const loginCheck = checkLoginAttempts();
-    if (!loginCheck.canTry) {
-      setError(loginCheck.error || 'Çok fazla deneme. Lütfen daha sonra tekrar deneyin.');
-      
-      // Kilitlenme süresini ayarla
-      if (loginCheck.remainingTime) {
-        const timer = setTimeout(() => {
-          setError('');
-        }, loginCheck.remainingTime);
-        setLockoutTimer(timer);
-      }
-      return;
-    }
-
-    // E-posta doğrulama
-    const emailValidation = validateEmail(email);
-    if (!emailValidation.isValid) {
-      setError(emailValidation.error || 'E-posta geçersiz');
-      return;
-    }
-
-    if (!password) {
-      setError('Şifre gerekli');
+    if (!email || !password) {
+      Alert.alert('Hata', 'Lütfen email ve şifrenizi girin');
       return;
     }
 
     setLoading(true);
-    setError('');
-
     try {
-      await signInWithEmailAndPassword(auth, email.toLowerCase(), password);
-      recordLoginAttempt(true); // Başarılı giriş
-    } catch (err: any) {
-      console.log('Login Error:', err.code, err.message); // Hata detaylarını logla
-      recordLoginAttempt(false); // Başarısız giriş
-      setError(getFirebaseAuthError(err.code));
-
-      // Güvenlik uyarısı
-      if (err.code === 'auth/user-not-found' || 
-          err.code === 'auth/wrong-password' || 
-          err.code === 'auth/invalid-credential' ||
-          err.code === 'auth/invalid-login-credentials') {
-        Alert.alert(
-          'Güvenlik Uyarısı',
-          'Birden fazla başarısız giriş denemesi hesabınızın geçici olarak kilitlenmesine neden olabilir.',
-          [{ text: 'Anladım', style: 'default' }]
-        );
+      // Beni hatırla seçeneği işaretliyse bilgileri kaydet
+      if (rememberMe) {
+        await AsyncStorage.setItem('rememberedEmail', email.trim());
+        await AsyncStorage.setItem('rememberMe', 'true');
+      } else {
+        await AsyncStorage.removeItem('rememberedEmail');
+        await AsyncStorage.removeItem('rememberMe');
       }
+
+      await signInWithEmailAndPassword(auth, email.trim(), password);
+    } catch (error: any) {
+      console.error('Giriş hatası:', error);
+      let errorMessage = 'Giriş yapılırken bir hata oluştu';
+      
+      if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Geçersiz email adresi';
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Kullanıcı bulunamadı';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Hatalı şifre';
+      }
+      
+      Alert.alert('Hata', errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleForgotPassword = () => {
-    // Şifremi unuttum fonksiyonu eklenecek
-    Alert.alert(
-      'Şifremi Unuttum',
-      'Şifre sıfırlama bağlantısı e-posta adresinize gönderilecek.',
-      [
-        { text: 'İptal', style: 'cancel' },
-        { 
-          text: 'Gönder',
-          onPress: () => {
-            if (!email) {
-              setError('Lütfen e-posta adresinizi girin');
-              return;
-            }
-            // TODO: Şifre sıfırlama fonksiyonu eklenecek
-          }
-        }
-      ]
-    );
-  };
-
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Hoş Geldiniz</Text>
-        <Text style={styles.subtitle}>Hesabınıza giriş yapın</Text>
-      </View>
-
-      <View style={styles.form}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.content}>
+        <Text style={styles.title}>Giriş Yap</Text>
+        
         <Input
           placeholder="E-posta"
           value={email}
-          onChangeText={(text) => {
-            setEmail(text.trim());
-            setError('');
-          }}
+          onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
-          error={!!error}
         />
+        
         <Input
           placeholder="Şifre"
           value={password}
-          onChangeText={(text) => {
-            setPassword(text);
-            setError('');
-          }}
+          onChangeText={setPassword}
           secureTextEntry
-          error={!!error}
         />
-        {error ? <Text style={styles.errorText}>{error}</Text> : null}
-        
-        <Button
-          title="Giriş Yap"
+
+        <TouchableOpacity 
+          style={styles.rememberMe}
+          onPress={() => setRememberMe(!rememberMe)}
+        >
+          <Ionicons 
+            name={rememberMe ? "checkbox" : "square-outline"} 
+            size={24} 
+            color={theme.colors.primary}
+          />
+          <Text style={styles.rememberMeText}>Beni Hatırla</Text>
+        </TouchableOpacity>
+
+        <Button 
+          title="Giriş Yap" 
           onPress={handleLogin}
           loading={loading}
-          disabled={loading || !!lockoutTimer}
         />
-        <Button
-          title="Şifremi Unuttum"
-          variant="outline"
-          onPress={handleForgotPassword}
-        />
-        <Button
-          title="Hesap Oluştur"
-          variant="outline"
+
+        <TouchableOpacity 
+          style={styles.registerLink}
           onPress={() => navigation.navigate('Register')}
-        />
+        >
+          <Text style={styles.registerText}>
+            Hesabın yok mu? <Text style={styles.registerTextBold}>Kayıt ol</Text>
+          </Text>
+        </TouchableOpacity>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -162,29 +128,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  contentContainer: {
+  content: {
+    flex: 1,
     padding: theme.spacing.lg,
-  },
-  header: {
-    marginTop: theme.spacing.xl * 2,
-    marginBottom: theme.spacing.xl,
+    justifyContent: 'center',
   },
   title: {
     fontSize: theme.typography.h1.fontSize,
     fontWeight: theme.typography.h1.fontWeight,
     color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.xl,
+    textAlign: 'center',
   },
-  subtitle: {
+  rememberMe: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  rememberMeText: {
+    marginLeft: theme.spacing.sm,
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.text,
+  },
+  registerLink: {
+    marginTop: theme.spacing.lg,
+  },
+  registerText: {
     fontSize: theme.typography.body.fontSize,
     color: theme.colors.textSecondary,
+    textAlign: 'center',
   },
-  form: {
-    gap: theme.spacing.sm,
-  },
-  errorText: {
-    color: theme.colors.error,
-    fontSize: 14,
-    marginTop: theme.spacing.xs,
+  registerTextBold: {
+    color: theme.colors.primary,
+    fontWeight: '600',
   },
 }); 

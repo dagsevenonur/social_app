@@ -6,18 +6,17 @@ export type RootStackParamList = {
 };
 
 export type MainStackParamList = {
-  TabNavigator: undefined;
-  Comments: {
+  MainTabs: undefined;
+  EditProfile: undefined;
+  UserProfile: { userId: string };
+  Comments: { 
     post: Post;
     onUpdate?: (post: Post) => void;
   };
-  EditProfile: undefined;
-  CreatePost: undefined;
+  Search: undefined;
   Notifications: undefined;
   Chat: undefined;
-  UserProfile: {
-    userId: string;
-  };
+  CreatePost: undefined;
 };
 
 export type MainTabParamList = {

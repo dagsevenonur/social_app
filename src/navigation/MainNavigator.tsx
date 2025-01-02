@@ -22,13 +22,20 @@ const Stack = createNativeStackNavigator<MainStackParamList>();
 function MainStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="TabNavigator" component={TabNavigator} />
+      <Stack.Screen name="MainTabs" component={TabNavigator} />
       <Stack.Screen name="Comments" component={CommentsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="CreatePost" component={CreatePostScreen} />
       <Stack.Screen name="Notifications" component={NotificationsScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+      <Stack.Screen 
+        name="Search" 
+        component={SearchScreen}
+        options={{
+          headerShown: false
+        }}
+      />
     </Stack.Navigator>
   );
 }

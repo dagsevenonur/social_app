@@ -112,14 +112,29 @@ export function HomeScreen() {
     <View style={styles.header}>
       <Text style={styles.headerTitle}>Keşfet</Text>
       <View style={styles.headerRight}>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('CreatePost')}>
-          <Ionicons name="add-circle-outline" size={24} color={theme.colors.text} />
+        <TouchableOpacity 
+          style={styles.headerButton} 
+          onPress={() => navigation.navigate('Search')}
+        >
+          <Ionicons name="search" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Notifications')}>
+        <TouchableOpacity 
+          style={styles.headerButton}
+          onPress={() => navigation.navigate('Notifications')}
+        >
           <Ionicons name="notifications-outline" size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.headerButton} onPress={() => navigation.navigate('Chat')}>
+        <TouchableOpacity 
+          style={styles.headerButton}
+          onPress={() => navigation.navigate('Chat')}
+        >
           <Ionicons name="chatbubbles-outline" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.headerButton}
+          onPress={() => navigation.navigate('CreatePost')}
+        >
+          <Ionicons name="add-circle-outline" size={24} color={theme.colors.text} />
         </TouchableOpacity>
       </View>
     </View>

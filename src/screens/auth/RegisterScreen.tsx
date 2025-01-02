@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, Text, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../../services/firebase';
 import { Input } from '../../components/Input';
 import { Button } from '../../components/Button';
@@ -18,6 +18,7 @@ export function RegisterScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -52,11 +53,10 @@ export function RegisterScreen() {
       
       // Firestore'da kullanıcı profili oluştur
       await setDoc(doc(db, 'users', userCredential.user.uid), {
+        displayName: username,
         email: email,
-        displayName: '',
-        bio: '',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
       });
     } catch (err: any) {
       // Firebase hata mesajlarını Türkçeleştir
@@ -85,6 +85,15 @@ export function RegisterScreen() {
       </View>
 
       <View style={styles.form}>
+        <Input
+          placeholder="Kullanıcı Adı"
+          value={username}
+          onChangeText={(text) => {
+            setUsername(text);
+            setError('');
+          }}
+          error={!!error}
+        />
         <Input
           placeholder="E-posta"
           value={email}
